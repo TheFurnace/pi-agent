@@ -3,6 +3,9 @@
 !.pi/settings.json
 !.pi/sandbox.json
 
+# CTF flag files — must never be committed (Nix store would expose them)
+*.flag
+
 # Beads / Dolt files (added by bd init)
 .dolt/
 *.db
