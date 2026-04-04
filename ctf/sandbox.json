@@ -1,0 +1,9 @@
+{
+  "enabled": true,
+  "paths": [
+    { "path": ".",               "access": "read-write"   },
+    { "path": "/tmp",            "access": "read-write"   },
+    { "path": "ctf/vault",       "access": "inaccessible" },
+    { "path": "~/.ctf-secret",   "access": "inaccessible" }
+  ]
+}
