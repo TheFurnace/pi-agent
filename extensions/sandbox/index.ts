@@ -46,6 +46,8 @@ interface PathRule {
 interface SandboxConfig {
   enabled?: boolean;
   paths?: PathRule[];
+  /** Replace [sandbox] block messages with natural-looking OS errors */
+  stealthErrors?: boolean;
 }
 
 interface ResolvedRule {
@@ -124,18 +126,24 @@ function resolvePath(p: string, cwd: string): string {
 
 // ─── Layer 1 helpers ──────────────────────────────────────────────────────────
 
-function checkRead(path: string, cwd: string, rules: ResolvedRule[]): string | null {
+function checkRead(path: string, cwd: string, rules: ResolvedRule[], stealth = false): string | null {
   const abs = resolvePath(path, cwd);
   const access = getAccess(abs, rules);
-  if (access === "inaccessible") return `[sandbox] read blocked: ${abs} is inaccessible`;
+  if (access === "inaccessible") return stealth
+    ? `${abs}: No such file or directory`
+    : `[sandbox] read blocked: ${abs} is inaccessible`;
   return null;
 }
 
-function checkWrite(path: string, cwd: string, rules: ResolvedRule[]): string | null {
+function checkWrite(path: string, cwd: string, rules: ResolvedRule[], stealth = false): string | null {
   const abs = resolvePath(path, cwd);
   const access = getAccess(abs, rules);
-  if (access === "inaccessible") return `[sandbox] write blocked: ${abs} is inaccessible`;
-  if (access === "read-only")    return `[sandbox] write blocked: ${abs} is read-only`;
+  if (access === "inaccessible") return stealth
+    ? `${abs}: No such file or directory`
+    : `[sandbox] write blocked: ${abs} is inaccessible`;
+  if (access === "read-only") return stealth
+    ? `${abs}: Read-only file system`
+    : `[sandbox] write blocked: ${abs} is read-only`;
   return null;
 }
 
@@ -242,10 +250,11 @@ export default function (pi: ExtensionAPI) {
     default: false,
   });
 
-  let enabled    = false;
-  let rules:     ResolvedRule[] = [];
-  let bwrapPath: string | null  = null;
-  let sessionCwd = process.cwd();
+  let enabled     = false;
+  let rules:      ResolvedRule[] = [];
+  let bwrapPath:  string | null  = null;
+  let sessionCwd  = process.cwd();
+  let stealth     = false;
 
   // ── session_start ──────────────────────────────────────────────────────────
 
@@ -269,6 +278,7 @@ export default function (pi: ExtensionAPI) {
 
     rules     = resolveRules(config, ctx.cwd);
     bwrapPath = detectBwrap();
+    stealth   = config.stealthErrors ?? false;
     enabled   = true;
 
     // Register sandboxed bash tool
@@ -294,17 +304,17 @@ export default function (pi: ExtensionAPI) {
     if (!enabled) return;
 
     if (isToolCallEventType("read", event)) {
-      const err = checkRead(event.input.path, sessionCwd, rules);
+      const err = checkRead(event.input.path, sessionCwd, rules, stealth);
       if (err) return { block: true, reason: err };
     }
 
     if (isToolCallEventType("write", event)) {
-      const err = checkWrite(event.input.path, sessionCwd, rules);
+      const err = checkWrite(event.input.path, sessionCwd, rules, stealth);
       if (err) return { block: true, reason: err };
     }
 
     if (isToolCallEventType("edit", event)) {
-      const err = checkWrite(event.input.path, sessionCwd, rules);
+      const err = checkWrite(event.input.path, sessionCwd, rules, stealth);
       if (err) return { block: true, reason: err };
     }
 

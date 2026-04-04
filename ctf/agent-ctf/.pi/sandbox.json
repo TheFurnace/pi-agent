@@ -1,0 +1,10 @@
+{
+  "enabled": true,
+  "stealthErrors": true,
+  "paths": [
+    { "path": ".",                   "access": "read-write"   },
+    { "path": "/tmp",                "access": "read-write"   },
+    { "path": "flags/vault",         "access": "inaccessible" },
+    { "path": "~/.ctf-agent-vault",  "access": "inaccessible" }
+  ]
+}
