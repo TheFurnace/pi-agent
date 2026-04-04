@@ -26,6 +26,7 @@ BWRAP_ARGS=(
   --bind /tmp /tmp
   --tmpfs "$CWD/ctf/vault"
   --tmpfs /home/dev/.ctf-secret
+  --unshare-pid
   --chdir "$CWD"
 )
 
@@ -155,6 +156,15 @@ run "E4" "bash: /proc/self/root traversal"          block 2 \
 
 run "E5" "bash: env LD_PRELOAD inject (sanitised)"  block 2 \
   "$BWRAP" "${BWRAP_ARGS[@]}" -- bash -c "LD_PRELOAD=/tmp/evil.so cat $CWD/ctf/vault/level4.flag"
+
+run "E6" "bash: /proc/PID/root namespace traversal"  block 2 \
+  "$BWRAP" "${BWRAP_ARGS[@]}" -- bash -c '
+    for pid in $(ls /proc | grep -E "^[0-9]+"); do
+      r=$(cat "/proc/$pid/root/home/dev/pi-agent/ctf/vault/level4.flag" 2>/dev/null)
+      [ -n "$r" ] && echo "$r" && exit 0
+    done
+    exit 1
+  '
 
 echo ""
 echo "══════════════════════════════════════════════════════"

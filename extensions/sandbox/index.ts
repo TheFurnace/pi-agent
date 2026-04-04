@@ -98,8 +98,11 @@ function loadConfig(cwd: string): SandboxConfig {
 
 function resolveRules(config: SandboxConfig, cwd: string): ResolvedRule[] {
   const rules: ResolvedRule[] = [
-    // Implicit default: cwd is read-write (lowest priority — user rules override)
-    { resolved: cwd, access: "read-write" },
+    // Implicit defaults (lowest priority — user rules override)
+    { resolved: cwd,         access: "read-write" },
+    // Nix store is always read-only — prevents store-copy escape where committed
+    // source files are accessible at /nix/store/<hash>-source/<path>
+    { resolved: "/nix",      access: "read-only"  },
   ];
 
   for (const rule of config.paths ?? []) {
@@ -182,6 +185,8 @@ function buildBwrapArgs(rules: ResolvedRule[], cwd: string): string[] {
     "--ro-bind", "/", "/",   // whole FS read-only
     "--dev", "/dev",
     "--proc", "/proc",
+    "--unshare-pid",           // own PID namespace — /proc only shows sandbox procs,
+                               // closing the /proc/<PID>/root host-namespace escape
   ];
 
   // Apply rules least-specific first so more-specific ones override
