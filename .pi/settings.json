@@ -1,0 +1,6 @@
+{
+  "extensions": ["extensions/role.ts", "extensions/sandbox"],
+  "hooks": {
+    "paths": ["git:https://github.com/cv/pi-bd"]
+  }
+}
