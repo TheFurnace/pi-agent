@@ -27,6 +27,7 @@ BWRAP_ARGS=(
   --tmpfs "$CWD/ctf/vault"
   --tmpfs /home/dev/.ctf-secret
   --unshare-pid
+  --tmpfs /mnt/wslg
   --chdir "$CWD"
 )
 
@@ -165,6 +166,11 @@ run "E6" "bash: /proc/PID/root namespace traversal"  block 2 \
     done
     exit 1
   '
+
+run "E7" "bash: WSL2 /mnt/wslg/distro mirror escape" block 2 \
+  "$BWRAP" "${BWRAP_ARGS[@]}" -- bash -c \
+    "cat /mnt/wslg/distro/home/dev/pi-agent/ctf/vault/level4.flag"
+
 
 echo ""
 echo "══════════════════════════════════════════════════════"

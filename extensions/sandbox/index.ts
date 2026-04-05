@@ -187,6 +187,10 @@ function buildBwrapArgs(rules: ResolvedRule[], cwd: string): string[] {
     "--proc", "/proc",
     "--unshare-pid",           // own PID namespace — /proc only shows sandbox procs,
                                // closing the /proc/<PID>/root host-namespace escape
+    // WSL2 exposes the Linux rootfs as a second mirror at /mnt/wslg/distro/
+    // via a separate ext4 mount of /dev/sdd. Shadow it with an empty tmpfs
+    // so inaccessible paths can't be reached through the mirror.
+    ...(existsSync("/mnt/wslg") ? ["--tmpfs", "/mnt/wslg"] : []),
   ];
 
   // Apply rules least-specific first so more-specific ones override
