@@ -30,7 +30,7 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { createBashTool, getAgentDir, isToolCallEventType, type BashOperations } from "@mariozechner/pi-coding-agent";
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -124,7 +124,11 @@ function getAccess(absPath: string, rules: ResolvedRule[]): Access {
 }
 
 function resolvePath(p: string, cwd: string): string {
-  return resolve(cwd, p.replace(/^@/, "").replace(/^~/, homedir()));
+  const logical = resolve(cwd, p.replace(/^@/, "").replace(/^~/, homedir()));
+  // Follow symlinks so a link in /tmp pointing to an inaccessible path
+  // is evaluated against the real target, not the symlink location.
+  // Fall back to the logical path if the target doesn't exist yet.
+  try { return realpathSync(logical); } catch { return logical; }
 }
 
 // ─── Layer 1 helpers ──────────────────────────────────────────────────────────

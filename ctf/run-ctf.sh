@@ -74,16 +74,15 @@ run() {
 echo "── Layer 1: in-process path policy (tool_call simulation) ──"
 echo ""
 
-# Simulate path.resolve(cwd, p) — absolute paths are used as-is
+# Simulate resolvePath() from the extension:
+# - expand ~ and make absolute
+# - follow symlinks (realpathSync) so symlink-into-inaccessible is caught
 resolve_path() {
   local p="$1"
-  # Expand ~ manually
   p="${p/#\~/$HOME}"
-  if [[ "$p" == /* ]]; then
-    echo "$p"
-  else
-    realpath -m "$CWD/$p" 2>/dev/null || echo "$CWD/$p"
-  fi
+  if [[ "$p" != /* ]]; then p="$CWD/$p"; fi
+  # Follow symlinks if target exists; fall back to logical path if not
+  realpath "$p" 2>/dev/null || realpath -m "$p" 2>/dev/null || echo "$p"
 }
 
 # Simulate the resolveAccess() logic from the extension in bash:
@@ -170,6 +169,13 @@ run "E6" "bash: /proc/PID/root namespace traversal"  block 2 \
 run "E7" "bash: WSL2 /mnt/wslg/distro mirror escape" block 2 \
   "$BWRAP" "${BWRAP_ARGS[@]}" -- bash -c \
     "cat /mnt/wslg/distro/home/dev/pi-agent/ctf/vault/level4.flag"
+
+# E8: symlink in /tmp → inaccessible path, read via the read tool (L1 check)
+# resolve_path now calls realpath, so the symlink is followed to the vault target
+ln -sf "$CWD/ctf/vault" /tmp/ctf_l1_escape 2>/dev/null || true
+run "E8" "read tool: symlink in /tmp -> inaccessible path" block 1 \
+  check_l1_read "/tmp/ctf_l1_escape/level4.flag"
+rm -f /tmp/ctf_l1_escape
 
 
 echo ""

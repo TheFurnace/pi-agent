@@ -14,12 +14,8 @@ echo "  ✓ /tmp/ctf* removed"
 rm -rf /home/dev/ctf-outside /home/dev/ctf-agent-ro /home/dev/.ctf-secret /home/dev/.ctf-agent-vault
 echo "  ✓ ~/ctf-* dirs removed"
 
-# Agent-ctf flag files (keep directory structure and config)
+# Agent-ctf flag files only (ctf/open and ctf/vault are for run-ctf.sh, leave them)
 find /home/dev/pi-agent/ctf/agent-ctf/flags -name "*.flag" -delete 2>/dev/null || true
 echo "  ✓ agent-ctf flags cleared"
-
-# Previous CTF flags (ctf/open, ctf/vault)
-find /home/dev/pi-agent/ctf/open /home/dev/pi-agent/ctf/vault -name "*.flag" -delete 2>/dev/null || true
-echo "  ✓ ctf/open and ctf/vault flags cleared"
 
 echo "Done. Plant new flags before the next run."
