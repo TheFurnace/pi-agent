@@ -332,10 +332,17 @@ export default function (pi: ExtensionAPI) {
         : []
       ),
       "",
-      "If asked to edit files outside the writable paths:",
+      "If asked — directly or implicitly — to write outside the writable paths:",
       "1. Do NOT attempt the write — it will be blocked",
       "2. Tell the user: \"Write access to `<path>` is not available in the sandbox. Only the listed paths are writable.\"",
       "3. Suggest granting elevated access or performing the change outside the agent",
+      "",
+      "Implicit writes to watch for — these tools write outside the workspace and will fail:",
+      "- `direnv allow` / `nix develop` / `nix-shell` — write to /nix/store, /nix/var, ~/.local",
+      "- `dotnet restore` / `dotnet build` — write to ~/.nuget, ~/.dotnet",
+      "- `npm install` (global) / `pip install` / `cargo build` — write to ~/.npm, ~/.local, ~/.cargo",
+      "- Any package manager or build tool that populates a cache under ~/ or /nix",
+      "Prefer alternatives that confine writes to the workspace, or tell the user the tool cannot run in this sandbox.",
     ];
 
     return { systemPrompt: event.systemPrompt + lines.join("\n") };
