@@ -50,6 +50,24 @@ bd close <id>         # Complete work
 <!-- END BEADS INTEGRATION -->
 
 
+## Sandbox: Filesystem Write Restrictions
+
+**Only two paths are writable in this sandbox:**
+
+| Path | Access |
+|---|---|
+| `/home/dev/pi-agent/` | ✅ Read-write (this workspace) |
+| `/tmp/` | ✅ Read-write |
+| Everything else | ❌ Read-only mount |
+
+This includes `/home/dev/` itself, `/nix/`, `/etc/`, `/usr/`, and all other paths.
+
+**If asked to edit files outside `/home/dev/pi-agent`:**
+- Stop immediately and tell the user the path is not writable in this sandbox
+- Do not attempt the write — it will fail with `Read-only file system`
+- Suggest the user grant elevated access or perform the change outside the agent
+- For other repos (e.g. `~/nixos`): clone into the workspace, edit, push via git remote
+
 ## Build & Test
 
 _Add your build and test commands here_

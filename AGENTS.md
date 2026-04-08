@@ -12,6 +12,25 @@ bd close <id>         # Complete work
 bd dolt push          # Push beads data to remote
 ```
 
+## Sandbox: Filesystem Write Restrictions
+
+**Only two paths are writable in this sandbox:**
+
+| Path | Access |
+|---|---|
+| `/home/dev/pi-agent/` | ✅ Read-write (this workspace) |
+| `/tmp/` | ✅ Read-write |
+| Everything else | ❌ Read-only mount |
+
+This includes `/home/dev/` itself, `/nix/`, `/etc/`, `/usr/`, and all other paths outside the workspace.
+
+**If asked to edit files outside `/home/dev/pi-agent`:**
+1. Do NOT attempt the write — it will fail with `Read-only file system`
+2. Immediately tell the user: _"Write access to `<path>` is not available in this sandbox. Only `/home/dev/pi-agent` is writable. Please grant elevated access or perform the operation outside the agent."_
+3. Do NOT burn tool calls probing the restriction — it is absolute
+
+For work that touches other repos (e.g. `~/nixos`, `~/.dotfiles`): clone or copy the relevant files into `/home/dev/pi-agent/`, make changes there, then push via git to the remote. The working copies in `~/nixos` and `~/.dotfiles` cannot be written to directly.
+
 ## Non-Interactive Shell Commands
 
 **ALWAYS use non-interactive flags** with file operations to avoid hanging on confirmation prompts.
