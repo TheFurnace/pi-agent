@@ -3,6 +3,10 @@
 !.pi/settings.json
 !.pi/sandbox.json
 
+# Working copies of other repos (not submodules)
+dotfiles-work/
+nixos-work/
+
 # CTF flag files — must never be committed (Nix store would expose them)
 *.flag
 
