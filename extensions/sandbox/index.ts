@@ -316,8 +316,8 @@ export default function (pi: ExtensionAPI) {
   pi.on("before_agent_start", async (event, _ctx) => {
     if (!enabled || rules.length === 0) return;
 
-    const rwPaths      = rules.filter(r => r.access === "read-write").map(r => r.resolved);
-    const blockedPaths = rules.filter(r => r.access === "inaccessible").map(r => r.resolved);
+    const rwPaths      = [...new Set(rules.filter(r => r.access === "read-write").map(r => r.resolved))];
+    const blockedPaths = [...new Set(rules.filter(r => r.access === "inaccessible").map(r => r.resolved))];
 
     const lines = [
       "",
