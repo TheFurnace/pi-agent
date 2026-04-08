@@ -311,6 +311,36 @@ export default function (pi: ExtensionAPI) {
     }
   });
 
+  // ── before_agent_start: inject writable-path context into system prompt ────
+
+  pi.on("before_agent_start", async (event, _ctx) => {
+    if (!enabled || rules.length === 0) return;
+
+    const rwPaths      = rules.filter(r => r.access === "read-write").map(r => r.resolved);
+    const blockedPaths = rules.filter(r => r.access === "inaccessible").map(r => r.resolved);
+
+    const lines = [
+      "",
+      "## Sandbox: Filesystem Write Restrictions",
+      "",
+      "The filesystem sandbox is active. Writable paths:",
+      ...rwPaths.map(p => `- \`${p}\``),
+      "",
+      "All other paths are read-only. Writes outside the listed paths will fail immediately.",
+      ...(blockedPaths.length > 0
+        ? ["", "Inaccessible paths (cannot read or write):", ...blockedPaths.map(p => `- \`${p}\``)]
+        : []
+      ),
+      "",
+      "If asked to edit files outside the writable paths:",
+      "1. Do NOT attempt the write — it will be blocked",
+      "2. Tell the user: \"Write access to `<path>` is not available in the sandbox. Only the listed paths are writable.\"",
+      "3. Suggest granting elevated access or performing the change outside the agent",
+    ];
+
+    return { systemPrompt: event.systemPrompt + lines.join("\n") };
+  });
+
   // ── Layer 1: tool_call interception ───────────────────────────────────────
 
   pi.on("tool_call", async (event, _ctx) => {
