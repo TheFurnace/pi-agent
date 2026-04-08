@@ -32,7 +32,10 @@ import { createBashTool, getAgentDir, isToolCallEventType, type BashOperations }
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -257,6 +260,14 @@ function createSandboxedBashOps(bwrapPath: string, bwrapArgs: string[]): BashOpe
 // ─── Extension ────────────────────────────────────────────────────────────────
 
 export default function (pi: ExtensionAPI) {
+  // ── resources_discover: self-register adjacent prompt docs ─────────────────
+  // Works whether the extension is loaded as a bare path or via a pi package.
+  // Consumers get /sandbox available as a prompt template automatically.
+
+  pi.on("resources_discover", async () => {
+    return { promptPaths: [join(__dirname, "prompts")] };
+  });
+
   pi.registerFlag("no-sandbox", {
     description: "Disable filesystem sandbox for this session",
     type: "boolean",
