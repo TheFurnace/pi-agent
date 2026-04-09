@@ -1,5 +1,26 @@
 {
   "nodes": {
+    "beads": {
+      "inputs": {
+        "nixpkgs": [
+          "nixos",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1775660174,
+        "narHash": "sha256-xQeieM/8h27iWrBuoYDpe+8Fie3axz/xe9oIcwljgdE=",
+        "owner": "TheFurnace",
+        "repo": "beads",
+        "rev": "0124dbe38bf249fd79d45479e4e2ad383c233ebb",
+        "type": "github"
+      },
+      "original": {
+        "owner": "TheFurnace",
+        "repo": "beads",
+        "type": "github"
+      }
+    },
     "claude-code": {
       "inputs": {
         "flake-utils": "flake-utils",
@@ -95,6 +116,7 @@
     },
     "nixos": {
       "inputs": {
+        "beads": "beads",
         "claude-code": "claude-code",
         "dotfiles": "dotfiles",
         "home-manager": "home-manager",
@@ -102,11 +124,11 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1775277261,
-        "narHash": "sha256-4Gj7NBAMgWXRZiNVInWZFkMT5elaOTIGc2aM/lee57I=",
+        "lastModified": 1775750178,
+        "narHash": "sha256-WXFGNGTW9l+UBHxcQ2dlN2vOSInbanfMY/kzj6Zpuz0=",
         "ref": "refs/heads/feature/bootstrap-dotfiles",
-        "rev": "04eed3246cae1aafca8847093fcb609dfa55527d",
-        "revCount": 40,
+        "rev": "c9789a273c94e0765039dbac6164490fa1821fb2",
+        "revCount": 45,
         "type": "git",
         "url": "file:///home/dev/nixos"
       },
@@ -156,6 +178,10 @@
     },
     "root": {
       "inputs": {
+        "beads": [
+          "nixos",
+          "beads"
+        ],
         "nixos": "nixos",
         "nixpkgs": [
           "nixos",
