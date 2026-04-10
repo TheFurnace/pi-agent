@@ -1,6 +1,3 @@
----
-description: Sandbox extension — how it works, hardening, and known limitations
----
 # Filesystem Sandbox — About
 
 The sandbox extension (`extensions/sandbox/`) enforces filesystem access policy in two layers:

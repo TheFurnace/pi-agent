@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Filesystem sandbox extension for pi — two-layer access policy via in-process interception and bwrap OS enforcement",
   "keywords": ["pi-package"],
+  "files": ["index.ts", "docs/"],
   "pi": {
-    "extensions": ["./index.ts"],
-    "prompts": ["./prompts"]
+    "extensions": ["./index.ts"]
   }
 }

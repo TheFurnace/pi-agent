@@ -1,6 +1,3 @@
----
-description: Sandbox extension — configuration reference
----
 # Filesystem Sandbox — Configuration
 
 ## Config files (merged, project wins)

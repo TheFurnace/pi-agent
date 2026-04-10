@@ -260,14 +260,6 @@ function createSandboxedBashOps(bwrapPath: string, bwrapArgs: string[]): BashOpe
 // ─── Extension ────────────────────────────────────────────────────────────────
 
 export default function (pi: ExtensionAPI) {
-  // ── resources_discover: self-register adjacent prompt docs ─────────────────
-  // Works whether the extension is loaded as a bare path or via a pi package.
-  // Consumers get /sandbox available as a prompt template automatically.
-
-  pi.on("resources_discover", async () => {
-    return { promptPaths: [join(__dirname, "prompts")] };
-  });
-
   pi.registerFlag("no-sandbox", {
     description: "Disable filesystem sandbox for this session",
     type: "boolean",
@@ -330,6 +322,7 @@ export default function (pi: ExtensionAPI) {
     const rwPaths      = [...new Set(rules.filter(r => r.access === "read-write").map(r => r.resolved))];
     const blockedPaths = [...new Set(rules.filter(r => r.access === "inaccessible").map(r => r.resolved))];
 
+    const docsDir = join(__dirname, "docs");
     const lines = [
       "",
       "## Sandbox: Filesystem Write Restrictions",
@@ -348,12 +341,7 @@ export default function (pi: ExtensionAPI) {
       "2. Tell the user: \"Write access to `<path>` is not available in the sandbox. Only the listed paths are writable.\"",
       "3. Suggest granting elevated access or performing the change outside the agent",
       "",
-      "Implicit writes to watch for — these tools write outside the workspace and will fail:",
-      "- `direnv allow` / `nix develop` / `nix-shell` — write to /nix/store, /nix/var, ~/.local",
-      "- `dotnet restore` / `dotnet build` — write to ~/.nuget, ~/.dotnet",
-      "- `npm install` (global) / `pip install` / `cargo build` — write to ~/.npm, ~/.local, ~/.cargo",
-      "- Any package manager or build tool that populates a cache under ~/ or /nix",
-      "Prefer alternatives that confine writes to the workspace, or tell the user the tool cannot run in this sandbox.",
+      `For sandbox configuration and usage documentation, see: \`${docsDir}/\``,
     ];
 
     return { systemPrompt: event.systemPrompt + lines.join("\n") };
