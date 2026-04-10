@@ -178,6 +178,10 @@
     },
     "root": {
       "inputs": {
+        "beads": [
+          "nixos",
+          "beads"
+        ],
         "nixos": "nixos",
         "nixpkgs": [
           "nixos",
