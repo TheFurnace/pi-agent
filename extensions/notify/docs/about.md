@@ -4,41 +4,46 @@ The notify extension (`extensions/notify/`) sends a desktop or terminal notifica
 when the pi agent finishes working, **but only when the terminal is not the active window**.
 This avoids notification noise when you are already watching the output.
 
+## Notification structure
+
+The **title** always carries the project context so you can identify the session at a glance
+without reading the body:
+
+```
+Pi — myapp (main)
+```
+
+The **body** carries the work summary and elapsed time. What goes in the body depends on the mode.
+
 ## Notification body modes
 
-The body of the notification is controlled by the `PI_NOTIFY_MODE` environment variable
-(default: `smart`).
-
-### `basic`
-
-```
-myapp (main) · 12s
-```
-
-Shows the working directory name, current git branch, and elapsed time. Zero latency —
-no LLM calls, no extra I/O beyond a single `git branch` command.
+Controlled via `PI_NOTIFY_MODE` (default: `smart`).
 
 ### `smart` (default)
 
 ```
-Fixed the login flow · edited auth.ts, ran 3 commands · myapp (main) · 12s
+Fixed the login flow · edited auth.ts, server.ts · ran npm test, git commit -m 'fix' · 12s
 ```
 
-Automatically extracts the first sentence of the agent's final reply and builds a
-concise tool-activity summary from the tool calls that ran during the turn
-(files edited via `edit`/`write`, bash commands counted). All data comes from what
-pi already has in memory — no network requests.
+Extracts the first sentence of the agent's final reply, then builds a verbose tool-activity
+summary from the calls that ran during the turn:
+
+- **Files:** lists specific basenames (up to 3), then `+N more`
+- **Bash:** shows a snippet of each command (≤30 chars, first line), up to 2, then `+N more`;
+  failed commands are flagged with `(failed)`
+
+No network requests — all data comes from what pi already has in memory.
 
 ### `ai`
 
 ```
-Refactored JWT validation and updated auth tests · myapp (main) · 12s
+Refactored JWT validation logic and updated auth test suite · 14s
 ```
 
-Sends the user's original prompt, the tool-activity summary, and a snippet of the
-agent's last reply to **gpt-4o-mini** to produce a crisp one-phrase description of
-what was accomplished. Falls back silently to `smart` on any error (missing API key,
-network failure, timeout). The request uses a 3-second timeout to keep failures fast.
+Sends the user's original prompt, the tool-activity summary, and the agent's last reply
+snippet to **gpt-5-mini** to produce a crisp, specific one-phrase description of what was
+accomplished. Falls back silently to `smart` on any error (missing API key, network
+failure, timeout). The request uses a 3-second timeout so failures are fast and invisible.
 
 **Requires:** `OPENAI_API_KEY` set in the environment.
 
@@ -46,7 +51,6 @@ network failure, timeout). The request uses a 3-second timeout to keep failures 
 
 ```bash
 # Choose a mode
-PI_NOTIFY_MODE=basic pi
 PI_NOTIFY_MODE=smart pi   # default
 PI_NOTIFY_MODE=ai    pi
 
@@ -98,7 +102,7 @@ At least one of the following:
 
 - **Any terminal with OSC support:** (preferred) no install needed — WezTerm, iTerm2, Kitty, rxvt-unicode, etc.
 - **Windows/WSL:** `powershell.exe` — used when running inside Windows Terminal (WT_SESSION) for native toasts.
-- **`ai` mode only:** `OPENAI_API_KEY` environment variable pointing to an OpenAI key with access to `gpt-4o-mini`.
+- **`ai` mode only:** `OPENAI_API_KEY` environment variable pointing to an OpenAI key with access to `gpt-5-mini`.
 
 ## Install
 

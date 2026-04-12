@@ -15,25 +15,25 @@
  *   2. OSC 99        — Kitty in-band
  *   3. powershell    — Windows / WSL toast (special handling for Windows Terminal)
  *
- * ─── Notification body modes ──────────────────────────────────────────────────
+ * ─── Notification modes ───────────────────────────────────────────────────────
  *
- *   "basic"  — "<cwd-basename> (<branch>) · <duration>s"
- *              Zero latency. Git branch is resolved at notification time.
+ * The title always shows the project context: "Pi — myapp (main)"
+ * The body carries the work summary and elapsed time.
  *
- *   "smart"  — "<last-reply-snippet> · <tool-activity> · <cwd> · <duration>s"
+ *   "smart"  — "<last-reply-snippet> · <tool-activity> · <duration>s"
  *              Extracts the first sentence of the final assistant message and
- *              builds a concise tool-activity summary from the run's tool
- *              calls (files edited, bash commands run, etc.). No network
- *              requests.
+ *              builds a verbose tool-activity summary from the run's tool calls
+ *              (specific filenames, bash command snippets, error flags). No
+ *              network requests.
  *
- *   "ai"     — "<gpt-4o-mini-summary> · <cwd> · <duration>s"
+ *   "ai"     — "<gpt-5-mini-summary> · <duration>s"
  *              Sends the user's original prompt, tool-activity summary, and
- *              the last assistant reply snippet to gpt-4o-mini to produce a
+ *              the last assistant reply snippet to gpt-5-mini to produce a
  *              crisp one-phrase summary. Falls back to "smart" on any error.
  *              Requires OPENAI_API_KEY in the environment. The request uses a
  *              3-second timeout so failures are silent and fast.
  *
- * Set PI_NOTIFY_MODE=basic|smart|ai to choose (default: "smart").
+ * Set PI_NOTIFY_MODE=smart|ai to choose (default: "smart").
  *
  * TODO: explore per-distro / per-DE native backends more broadly before
  *       falling back to OSC sequences — e.g. kdialog (KDE), dunstify (dunst),
@@ -50,7 +50,7 @@ import path from "node:path";
 
 // ─── Configuration ─────────────────────────────────────────────────────────
 
-type NotifyMode = "basic" | "smart" | "ai";
+type NotifyMode = "smart" | "ai";
 
 const CONFIG = {
 	/**
@@ -62,7 +62,7 @@ const CONFIG = {
 	mode: (process.env.PI_NOTIFY_MODE ?? "smart") as NotifyMode,
 
 	/** OpenAI model used in "ai" mode. */
-	aiModel: "gpt-4o-mini",
+	aiModel: "gpt-5-mini",
 
 	/**
 	 * Hard cap on the rendered notification body in characters.
@@ -93,7 +93,6 @@ function oscFallback(): "osc777" | "osc99" {
  * inside Windows Terminal (WT_SESSION).
  */
 function probeBackend(): Backend {
-	// Windows Terminal sets WT_SESSION; use PowerShell toast there.
 	if (process.env.WT_SESSION) return "powershell";
 	return oscFallback();
 }
@@ -120,12 +119,10 @@ function sendNotification(backend: Backend, title: string, body: string): void {
 			break;
 
 		case "osc777":
-			// Supported by Ghostty, iTerm2, WezTerm, rxvt-unicode
 			process.stdout.write(`\x1b]777;notify;${title};${body}\x07`);
 			break;
 
 		case "osc99":
-			// Kitty OSC 99: i = notification id, d = 0 (not done), p = body part
 			process.stdout.write(`\x1b]99;i=1:d=0;${title}\x1b\\`);
 			process.stdout.write(`\x1b]99;i=1:p=body;${body}\x1b\\`);
 			break;
@@ -141,14 +138,12 @@ function truncate(text: string, max: number): string {
 
 /**
  * Extract the first sentence from text.
- * Falls back to the first line when no sentence-ending punctuation is found
- * within a reasonable range.
+ * Falls back to the first non-empty line when no sentence-ending punctuation
+ * is found within a reasonable range.
  */
 function firstSentence(text: string): string {
-	// Match a sentence that's at least 8 chars ending in . ! or ?
 	const match = text.match(/^.{8,}?[.!?](?:\s|$)/);
 	if (match) return match[0].trim();
-	// Fallback: first non-empty line
 	return text.split("\n").find(l => l.trim().length > 0)?.trim() ?? text.trim();
 }
 
@@ -179,42 +174,57 @@ interface ToolEntry {
 }
 
 /**
- * Build a concise human-readable summary of which tools ran during the
+ * Build a verbose human-readable summary of the tools that ran during the
  * agent turn.
  *
+ * Files: lists specific basenames, up to 3, then "+N more".
+ * Bash:  shows a snippet of each command (first line, ≤30 chars), up to 2,
+ *        then "+N more". Failed commands are flagged with "(failed)".
+ *
  * Examples:
- *   "edited auth.ts"
- *   "edited 3 files, ran 2 commands"
- *   "ran 1 command"
+ *   "edited auth.ts, server.ts · ran npm test, git commit -m 'fix auth'"
+ *   "edited auth.ts, db.ts, api.ts +2 more · ran cargo build (failed) +1 more"
+ *   "wrote config.json · ran npm install"
  */
 function buildToolSummary(log: ToolEntry[]): string {
-	const editedFiles = new Set<string>();
-	let bashCount = 0;
+	const editedFiles: string[] = [];
+	const bashEntries: { snippet: string; isError: boolean }[] = [];
 
-	for (const { name, args } of log) {
+	for (const { name, args, isError } of log) {
 		if (name === "edit" || name === "write") {
 			const filePath: string | undefined = args?.path;
-			if (filePath) editedFiles.add(path.basename(filePath));
+			if (filePath) {
+				const basename = path.basename(filePath);
+				if (!editedFiles.includes(basename)) editedFiles.push(basename);
+			}
 		} else if (name === "bash") {
-			bashCount++;
+			const command: string = args?.command ?? "";
+			const firstLine = command.split("\n")[0].trim();
+			bashEntries.push({ snippet: truncate(firstLine, 30), isError });
 		}
 	}
 
 	const parts: string[] = [];
 
-	if (editedFiles.size === 1) {
-		parts.push(`edited ${[...editedFiles][0]}`);
-	} else if (editedFiles.size > 1) {
-		parts.push(`edited ${editedFiles.size} files`);
+	// Files: list up to 3 names, count the rest
+	if (editedFiles.length > 0) {
+		const shown = editedFiles.slice(0, 3);
+		const rest  = editedFiles.length - shown.length;
+		const verb  = editedFiles.length === 1 && log.find(e => e.name === "write" && path.basename(e.args?.path ?? "") === editedFiles[0])
+			? "wrote"
+			: "edited";
+		parts.push(`${verb} ${shown.join(", ")}${rest > 0 ? ` +${rest} more` : ""}`);
 	}
 
-	if (bashCount === 1) {
-		parts.push("ran 1 command");
-	} else if (bashCount > 1) {
-		parts.push(`ran ${bashCount} commands`);
+	// Bash: list up to 2 command snippets, count the rest
+	if (bashEntries.length > 0) {
+		const shown   = bashEntries.slice(0, 2);
+		const rest    = bashEntries.length - shown.length;
+		const cmdList = shown.map(c => c.snippet + (c.isError ? " (failed)" : "")).join(", ");
+		parts.push(`ran ${cmdList}${rest > 0 ? ` +${rest} more` : ""}`);
 	}
 
-	return parts.join(", ");
+	return parts.join(" · ");
 }
 
 // ─── Git branch ───────────────────────────────────────────────────────────────
@@ -235,8 +245,7 @@ async function getGitBranch(cwd: string, exec: ExtensionAPI["exec"]): Promise<st
 // ─── AI summary ───────────────────────────────────────────────────────────────
 
 /**
- * Ask gpt-4o-mini to produce a single short phrase summarising what was done.
- *
+ * Ask gpt-5-mini to produce a single short phrase summarising what was done.
  * Throws on any error (network, missing key, timeout) so the caller can fall
  * back gracefully.
  */
@@ -252,7 +261,7 @@ async function generateAiSummary(
 	const contextLines: string[] = [];
 	if (userPrompt) contextLines.push(`Task: ${userPrompt.slice(0, 200)}`);
 	if (toolSummary)  contextLines.push(`Actions: ${toolSummary}`);
-	if (lastReply)    contextLines.push(`Result: ${lastReply.slice(0, 300)}`);
+	if (lastReply)    contextLines.push(`Result: ${lastReply.slice(0, 400)}`);
 
 	const controller = new AbortController();
 	const timer = setTimeout(() => controller.abort(), 3000);
@@ -267,15 +276,16 @@ async function generateAiSummary(
 			},
 			body: JSON.stringify({
 				model,
-				max_tokens: 25,
+				max_tokens: 40,
 				temperature: 0,
 				messages: [
 					{
 						role: "system",
 						content:
 							"You generate desktop notification bodies for a coding agent. " +
-							"Write exactly one short phrase (≤10 words) that concisely describes " +
-							"what was accomplished. Be specific. No trailing period.",
+							"Write exactly one short phrase (≤15 words) that concisely describes " +
+							"what was accomplished. Be specific about files or features touched. " +
+							"No trailing period.",
 					},
 					{ role: "user", content: contextLines.join("\n") },
 				],
@@ -293,57 +303,58 @@ async function generateAiSummary(
 	}
 }
 
-// ─── Body builder ─────────────────────────────────────────────────────────────
+// ─── Notification builder ─────────────────────────────────────────────────────
 
 interface RunState {
-	startTime: number;
+	startTime:  number;
 	userPrompt: string;
-	toolLog: ToolEntry[];
+	toolLog:    ToolEntry[];
 }
 
-async function buildNotificationBody(
+/**
+ * Build the notification title and body for an agent_end event.
+ *
+ * Title: "Pi — <cwd-basename> (<branch>)"  — always shows project context.
+ * Body:  mode-specific work summary + elapsed time.
+ */
+async function buildNotification(
 	mode: NotifyMode,
 	messages: AgentMessage[],
 	run: RunState,
 	cwd: string,
 	exec: ExtensionAPI["exec"],
-): Promise<string> {
-	// Always resolve git branch and duration — they appear in every mode.
+): Promise<{ title: string; body: string }> {
 	const [branch, elapsedSec] = await Promise.all([
 		getGitBranch(cwd, exec),
 		Promise.resolve(run.startTime > 0 ? Math.round((Date.now() - run.startTime) / 1000) : 0),
 	]);
 
-	const cwdName    = path.basename(cwd);
-	const locationPart = branch ? `${cwdName} (${branch})` : cwdName;
-	const timePart     = elapsedSec > 0 ? `${elapsedSec}s` : "";
-	const meta         = [locationPart, timePart].filter(Boolean).join(" · ");
+	const cwdName   = path.basename(cwd);
+	const title     = branch ? `Pi — ${cwdName} (${branch})` : `Pi — ${cwdName}`;
+	const timePart  = elapsedSec > 0 ? `${elapsedSec}s` : "";
 
-	// ── basic ─────────────────────────────────────────────────────────────────
-	if (mode === "basic") {
-		return truncate(meta, CONFIG.maxBodyLength);
-	}
-
-	// ── smart & ai — shared enrichment ───────────────────────────────────────
+	// Shared enrichment for both modes
 	const toolSummary = buildToolSummary(run.toolLog);
 	const rawReply    = extractLastAssistantText(messages);
-	const snippet     = rawReply ? truncate(firstSentence(rawReply), 60) : "";
+	const snippet     = rawReply ? truncate(firstSentence(rawReply), 70) : "";
 
 	const smartBody = (): string => {
-		const parts = [snippet, toolSummary, meta].filter(Boolean);
+		const parts = [snippet, toolSummary, timePart].filter(Boolean);
 		return truncate(parts.join(" · "), CONFIG.maxBodyLength);
 	};
 
-	if (mode === "smart") return smartBody();
+	if (mode === "smart") {
+		return { title, body: smartBody() };
+	}
 
-	// ── ai ────────────────────────────────────────────────────────────────────
+	// ai mode
 	try {
 		const summary = await generateAiSummary(run.userPrompt, toolSummary, rawReply, CONFIG.aiModel);
-		const parts   = [summary, meta].filter(Boolean);
-		return truncate(parts.join(" · "), CONFIG.maxBodyLength);
+		const parts   = [summary, timePart].filter(Boolean);
+		return { title, body: truncate(parts.join(" · "), CONFIG.maxBodyLength) };
 	} catch {
-		// Silent fallback to smart — don't let AI errors break notifications.
-		return smartBody();
+		// Silent fallback to smart
+		return { title, body: smartBody() };
 	}
 }
 
@@ -422,7 +433,7 @@ export default function (pi: ExtensionAPI) {
 		if (!ctx.hasUI) return;
 		if (isFocused) return;
 
-		const body = await buildNotificationBody(
+		const { title, body } = await buildNotification(
 			CONFIG.mode,
 			event.messages,
 			runState,
@@ -430,6 +441,6 @@ export default function (pi: ExtensionAPI) {
 			pi.exec.bind(pi),
 		);
 
-		sendNotification(backend, "Pi", body);
+		sendNotification(backend, title, body);
 	});
 }
